@@ -27,6 +27,10 @@ public final class Argument<T> {
         return this;
     }
 
+    public String name() {
+        return name;
+    }
+
     public T parse(String value) {
         final T parsed;
         try {
