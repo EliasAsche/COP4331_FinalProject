@@ -1,8 +1,9 @@
 package oop.project.library.argument;
 
-import java.util.Set;
+import java.util.Arrays;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 public final class Arguments {
 
@@ -13,15 +14,48 @@ public final class Arguments {
         if (value.equals("false")) {
             return false;
         }
-        throw new RuntimeException("Expected true or false.");
+        throw new ArgumentException("Expected true or false.");
     };
 
-    public static final ArgumentType<Integer> INTEGER = Integer::parseInt;
-    public static final ArgumentType<Double> DOUBLE = Double::parseDouble;
+    public static final ArgumentType<Integer> INTEGER = value -> {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new ArgumentException("Expected integer.", e);
+        }
+    };
+
+    public static final ArgumentType<Double> DOUBLE = value -> {
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            throw new ArgumentException("Expected double.", e);
+        }
+    };
+
     public static final ArgumentType<String> STRING = value -> value;
 
     public static <T> ArgumentType<T> custom(Function<String, T> parser) {
-        return parser::apply;
+        return value -> {
+            try {
+                return parser.apply(value);
+            } catch (RuntimeException e) {
+                throw new ArgumentException("Invalid custom value.", e);
+            }
+        };
+    }
+
+    public static <E extends Enum<E>> ArgumentType<E> enumeration(Class<E> enumType) {
+        return value -> {
+            for (var constant : enumType.getEnumConstants()) {
+                if (constant.name().equalsIgnoreCase(value)) {
+                    return constant;
+                }
+            }
+            throw new ArgumentException(
+                    "Expected one of " + Arrays.toString(enumType.getEnumConstants()) + "."
+            );
+        };
     }
 
     public static <T extends Comparable<T>> Predicate<T> range(T min, T max) {
@@ -29,8 +63,19 @@ public final class Arguments {
     }
 
     public static Predicate<String> choices(String... values) {
-        var choices = Set.of(values);
-        return choices::contains;
+        return value -> {
+            for (var choice : values) {
+                if (choice.equals(value)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+    }
+
+    public static Predicate<String> regex(String pattern) {
+        var compiled = Pattern.compile(pattern);
+        return value -> compiled.matcher(value).matches();
     }
 
     private Arguments() {}

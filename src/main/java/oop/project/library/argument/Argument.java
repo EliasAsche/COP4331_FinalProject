@@ -33,15 +33,18 @@ public final class Argument<T> {
 
     public T parse(String value) {
         final T parsed;
+
         try {
             parsed = type.parse(value);
+        } catch (ArgumentException e) {
+            throw new ArgumentException("Invalid " + name + ": " + value, e);
         } catch (RuntimeException e) {
-            throw new RuntimeException("Invalid " + name + ": " + value, e);
+            throw new ArgumentException("Invalid " + name + ": " + value, e);
         }
 
         for (var validation : validations) {
             if (!validation.predicate().test(parsed)) {
-                throw new RuntimeException("Invalid " + name + ": " + validation.message());
+                throw new ArgumentException("Invalid " + name + ": " + validation.message());
             }
         }
 
