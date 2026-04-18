@@ -1,23 +1,47 @@
-# Command System
-
-Handles creation of creation command structures and multi-argument parsing.
-
-## Development Notes
-
-We declare positional and named arguments separately, single responsibility. The user creates arguments using Argument<T> and then registers argument type, i.e. positional or named. Using Argument<T> over <?> allows us to create a typed key which we can move around without needing to recast. ParsedArgs acts as a type-safe container. We create a ParsedArgs instance in the .parse command in command.java, this allows us to later call .get which allows us to pass through Arugment<T> without ever needing to re-cast. We return map string object to fit testing criteria. 
-
-## PoC Design Analysis
 
 
-### Individual Review (Command Lead)
 
 
-Using Argument<T> instead of <?> is our strongest design choice. IT allows the compiler to enforce the types with no risk of accidentally calling a getString on a Int. One not so great part of our design is the lack of detailed and well place exceptions throughout both the Command and Argument systems. In the lectue Prof showed us how this could be done better and we will try and implement it in the MVP. 
 
-### Individual Review (Argument Lead)
+# command system
 
-The integration between Argument and Command is simple because we just have to give Argument<T> to the Command. The only issue and something we will try and work on in the future is the cast in ParsedArgs as this could lead to problems down the line. 
+handles creation of command structures and multi-argument parsing.
 
-### Team Review
 
-We are still figuring out how to delegate responsibilities and future proofing our systems. Currently there are some gaps in both te argument side and the command side which we will have to reconcile in the near future. 
+# Development Notes
+
+For the MVP I added a new ArgMetadata interface inside of the command class to keep what an argument is separate from how the command will actually use it. The Argument<T> we are using is just a parser and has no idea how the command will interact with it whether it be required, optional, position etc. The records implemented in the argmetadata carry all the per commmand role info. As mentioned before we declare position and named args separately so we can enforce our own rules for each. The user utilizes our library by creating an argument<T> and registering it either positional, named, or subcommand. Because we are using <T> instead of <?> this lets us return type <T> without needing a cast at call side. We achieve this by using a PArsedArgs container whih is produced when we call command.parse. The user passes in Arg <T> they registered which acts as a typed key. For error handling we created a CommandException to follow suit with Argument exception. This is to show bad user input, arg exception vs library mistakes, command exception. This allows us to create the user friendly error messages we have been talking about for this proj. 
+
+# Individual Review (Command Lead)
+
+Good designs decisions
+
+
+The best design decisions in my opinion for my system is ParsedArgs.get(Arg<T>) -> T. This utilizes the arg obj itself as a typed key instead of a string! This is critical. The caller uses the same Arg<T> reference they registered with which lets us pass the type through. Which allows us to have the scenarios avoid casting such as int left = result.get(left_Arg). 
+
+The second good design decision was the use of a SEALED argmetadata that allows us to maintain single responsibility for how a command uses a specific arg. Because a arg<int> can be a required position in one ommand but then an option arg in another means that the arg and the way it is used should be handled separately. 
+
+# Not so good design decisions 
+
+The 4 parameter named(arg<T>, list, T, T) is pretty ugly. It is hard for even me to remember which goes where so having it in a more organized and less quickly put together fashion is a good design consideration for the future. 
+
+The second not so great design decision would be the fact that we need name-uniqueness checks for the fluent builder. 
+
+# good design decision from arg system 
+
+Arg.enumeration(class<E>) is a polymorphic solution to any enum requirement. Thsi allows a user defined enum to work without the lib needing to have a dedicated class per each enum type which is a huge win. And it basically boils down to becoming just another ArgType<T>.
+
+# Not so good design decision
+
+The not so good part about the arg system is once again our exception catching and this also translates to my system. We both got a bit lazy here. Specifically in his system the .custom function rethrows the RunetimeException as a invalidcustom value which drops the reasioning behind the original exception. 
+
+
+
+#team design 
+
+The only major design decision we disagreed on was where the defaults belong. Right now I was the one who implemented defaults on the command side but it could also live on the args side though that might be a problem because some args might want different defaults values. We ended up sticking on the command side but it is a design decision that could probably go either way. 
+
+
+# one design choice we agre could be improved 
+
+The unchecked cast I implement in parsedargs.get is not great. It is a "Safe" cast but since you cant prove this at compile time its not the best and we wonder if there is a better way to code this. 
