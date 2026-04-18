@@ -2,7 +2,7 @@ Development Notes
 
 For the argument system, the main goal was to keep it polymorphic and not tie it to one specific type. That is why the core design is built around ArgumentType<T> instead of hardcoding logic for stuff like int, double, or LocalDate. That made it easier to support custom parsing and then later add enum support too.
 
-Another design choice was keeping validation attached to the argument itself. Instead of putting checks all over the scenarios, stuff like ranges, choices, and regex validation can live directly on the argument through validate(...). That kept the scenarios a lot cleaner.
+Another design choice was keeping validation attached to the argument itself. Instead of putting checks all over the scenarios, stuff like ranges, choices, and regex validation can live directly on the argument through validate(). That kept the scenarios a lot cleaner.
 
 I also added ArgumentException as a dedicated runtime exception for argument parsing and validation errors. The main point there was just to make the error handling more consistent so the rest of the library is not dealing with random generic runtime exceptions from the argument side.
 
@@ -13,7 +13,7 @@ Good design decisions
 
 One good design decision in our argument system is using ArgumentType<T> as the main abstraction. That was nice because it let us support normal primitive types, custom parsing, and enums without hardcoding special cases all over the place.
 
-Another good design decision is keeping validation attached to the argument itself with validate(...). I think that made stuff like ranges, choices, and regex feel a lot cleaner since the validation stays close to the thing being parsed.
+Another good design decision is keeping validation attached to the argument itself with validate(). I think that made stuff like ranges, choices, and regex feel a lot cleaner since the validation stays close to the thing being parsed.
 
 Bad design decisions
 
