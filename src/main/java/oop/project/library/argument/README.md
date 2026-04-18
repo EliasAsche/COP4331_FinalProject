@@ -1,37 +1,36 @@
-# Argument System
+Development Notes
 
-Handles parsing a single String input value into typed data.
+For the argument system, the main goal was to keep it polymorphic and not tie it to one specific type. That is why the core design is built around ArgumentType<T> instead of hardcoding logic for stuff like int, double, or LocalDate. That made it easier to support custom parsing and then later add enum support too.
 
-## Development Notes
+Another design choice was keeping validation attached to the argument itself. Instead of putting checks all over the scenarios, stuff like ranges, choices, and regex validation can live directly on the argument through validate(). That kept the scenarios a lot cleaner.
 
-Used a small generic `Argument<T>` wrapper so parsing and validation stay together instead of being split across the scenarios.
+I also added ArgumentException as a dedicated runtime exception for argument parsing and validation errors. The main point there was just to make the error handling more consistent so the rest of the library is not dealing with random generic runtime exceptions from the argument side.
 
-Used `ArgumentType<T>` as the core abstraction so the built-in types and custom types use the same overall flow.
+One thing that still feels a little rough is the boundary between the argument system and the command system. The argument system handles parsing one value well, but some checks still depend on how the command side is structured, so that separation is better than before but not perfect.
 
-Kept range and choice validation separate from the actual primitive parsing so it is easier to extend later for stuff like enums or regex checks.
+Individual Review
+Good design decisions
 
-Right now the scenarios still return `Map<String, Object>` because that is what the provided tests expect, but the actual typed parsing happens before that point.
+One good design decision in our argument system is using ArgumentType<T> as the main abstraction. That was nice because it let us support normal primitive types, custom parsing, and enums without hardcoding special cases all over the place.
 
-## PoC Design Analysis
+Another good design decision is keeping validation attached to the argument itself with validate(). I think that made stuff like ranges, choices, and regex feel a lot cleaner since the validation stays close to the thing being parsed.
 
-### Individual Review (Argument Lead)
+Bad design decisions
 
-One thing I like is that the argument API is pretty small. The `Argument<T>` plus `ArgumentType<T>` setup was enough to handle ints, doubles, strings, and a custom `LocalDate` case without needing a bunch of separate classes.
+One bad design decision is that our error handling is still kind of generic in some places. We do have ArgumentException, which helps, but some of the errors still feel a little too broad and could be more descriptive.
 
-Another good choice was keeping validation chained onto the argument itself. That made stuff like fizzbuzz range checks and difficulty choices feel pretty direct.
+Another bad design decision is that the scenarios still do some checking that probably should be handled more by the command system. It works, but it makes the separation between the systems a little less clean than it should be.
 
-One weaker part is that the error handling is still pretty generic right now. It works for the PoC, but the messages could definitely be more specific.
+One good decision in my teammate’s system
 
-Another less-good part is that the scenarios still have to do positional count checks themselves. It works, but ideally more of that would probably live in the command system instead.
+One good design decision in the command system is separating the command structure from the parsed values. I think having Command and ParsedArgs as different things was a good idea because it makes the roles a little clearer and helps with typed extraction.
 
-### Individual Review (Command Lead)
+One bad decision in my teammate’s system
 
-The provided Input structure seems useful since it already separates positional and named arguments in a simple way.
+One bad design decision in the command system is that it still feels a little underdeveloped for the MVP features. It works for the simpler cases, but things like defaults and subcommands do not feel super natural in the current design yet.
 
-One possible issue is that the command side will probably get more awkward once defaults and subcommands get added, so the current PoC structure may need to grow pretty quickly.
+Team Review
 
-### Team Review
+One design decision we still kind of disagree on is how much validation responsibility should live in the argument system versus the command system. There is a case for both, and I do not think we have fully settled on the cleanest split yet.
 
-One thing we are still not fully sure about is how much validation responsibility should stay in the argument system versus the command system.
-
-We also still need to think more about how the current structure should grow once named defaults and subcommands become part of the MVP.
+One design concern we both agree on is that the current design probably needs to be cleaned up more before all the MVP features fit into it well, especially on the command side with defaults and subcommands.
