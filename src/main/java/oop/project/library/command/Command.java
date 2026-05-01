@@ -8,36 +8,30 @@ import oop.project.library.input.Input;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class Command {
 
-    private sealed interface ArgMetadata {
+    private record PositionalMetadata<T>(
+        Argument<T> argument,
+        Optional<Object> defaultValue
+    ) {}
 
-        record PositionalMetadata<T>(
-            Argument<T> argument,
-            Optional<Object> defaultValue
-        ) implements ArgMetadata {}
-
-        record NamedMetadata<T>(
-            Argument<T> argument,
-            List<String> names,
-            Optional<Object> defaultValue,
-            Optional<Object> presentDefaultValue
-        ) implements ArgMetadata {}
-
-        record SubcommandMetadata(
-            Map<String, Command> subcommands
-        ) implements ArgMetadata {}
-
-    }
+    private record NamedMetadata<T>(
+        Argument<T> argument,
+        Optional<Object> defaultValue,
+        Optional<Object> presentDefaultValue
+    ) {}
 
     private final String name;
-    private final List<ArgMetadata.PositionalMetadata<?>> positionals = new ArrayList<>();
-    private final List<ArgMetadata.NamedMetadata<?>> named_args = new ArrayList<>();
-    private ArgMetadata.SubcommandMetadata subcommands = null;
+    private final List<PositionalMetadata<?>> positionals = new ArrayList<>();
+    private final Set<NamedMetadata<?>> namedSlots = new LinkedHashSet<>();
+    private final Map<String, NamedMetadata<?>> namedByAlias = new LinkedHashMap<>();
+    private Map<String, Command> subcommands = null;
 
     private Command(String name) {
         this.name = name;
@@ -47,43 +41,96 @@ public final class Command {
         return new Command(name);
     }
 
+    /**
+     * Registers the required positional arguments for a command.
+     * Positionals are consumed in the order they were added.
+     *
+     * @param argument the typed argument to register
+     * @param <T> the parsed value type carried
+     * @return this command
+     * @throws CommandException A command level exception if subcommands are already registered or if the
+     *         argument name collides with an existing positional
+     */
     public <T> Command positional(Argument<T> argument) {
         if (subcommands != null) {
             throw new CommandException("Command cannot add pos args");
         }
         checkDuplicate(argument.name());
-        positionals.add(new ArgMetadata.PositionalMetadata<>(argument, Optional.empty()));
+        positionals.add(new PositionalMetadata<>(argument, Optional.empty()));
         return this;
     }
 
+    /**
+     * Registers an optional positional argument with a default value, used if not provided.
+     * Defaults follow required positionals in registration order.
+     * Supplying fewer values than required positionals fails at parse time.
+     *
+     * @param argument the typed argument descriptor to register
+     * @param defaultValue the value substituted if caller omits this positional
+     * @param <T> the parsed value type carried
+     * @return this command
+     * @throws CommandException A command level exception if subcommands are already registered or if the
+     *         argument name collides with an existing positional
+     */
     public <T> Command positional(Argument<T> argument, T defaultValue) {
         if (subcommands != null) {
             throw new CommandException("Command cannot add pos args");
         }
         checkDuplicate(argument.name());
-        positionals.add(new ArgMetadata.PositionalMetadata<>(argument, Optional.of(defaultValue)));
+        positionals.add(new PositionalMetadata<>(argument, Optional.of(defaultValue)));
         return this;
     }
 
+    /**
+     * Registers a required named argument using the name of the argument as a single flag alias.
+     *
+     * @param argument the typed argument descriptor to register
+     * @param <T> the parsed value type carried
+     * @return this command
+     * @throws CommandException if subcommands are registered or the name collides
+     */
     public <T> Command named(Argument<T> argument) {
         return named(argument, List.of(argument.name()));
     }
 
+    /**
+     * Registers a required named argument supplied under any of the given alias names.
+     * Each alias stores its own lookup pointing at the underlying metadata.
+     *
+     * @param argument the typed argument descriptor
+     * @param names the flag names that trigger this argument
+     * @param <T> the parsed value type carried
+     * @return this command
+     * @throws CommandException if subcommands already exist, names is empty, or a name collides
+     */
     public <T> Command named(Argument<T> argument, List<String> names) {
-        if (subcommands != null) {
-            throw new CommandException("Command cannot add named args");
-        }
-        if (names.isEmpty()) {
-            throw new CommandException(" must have at least one name.");
-        }
-        for (var n : names) {
-            checkDuplicate(n);
-        }
-        named_args.add(new ArgMetadata.NamedMetadata<>(argument, new ArrayList<>(names), Optional.empty(), Optional.empty()));
-        return this;
+        return registerNamed(argument, names, Optional.empty(), Optional.empty());
     }
 
+    /**
+     * Registers a named arg with default behavior.
+     * When the flag is missing, {@code defaultValue} is used.
+     * When the flag appears with no following value ({@code -i}), {@code presentDefaultValue} is used.
+     * When the flag has a value ({@code --i true}), the value is parsed normally.
+     *
+     * @param argument the typed argument descriptor
+     * @param names the flag names that may trigger this argument
+     * @param defaultValue value used when the flag is absent from input
+     * @param presentDefaultValue value used when the flag is present but has no provided value
+     * @param <T> the parsed value type carried
+     * @return this command
+     * @throws CommandException if subcommands exist, names is empty, or a name collides
+     */
     public <T> Command named(Argument<T> argument, List<String> names, T defaultValue, T presentDefaultValue) {
+        return registerNamed(argument, names, Optional.of(defaultValue), Optional.of(presentDefaultValue));
+    }
+
+    private <T> Command registerNamed(
+        Argument<T> argument,
+        List<String> names,
+        Optional<Object> defaultValue,
+        Optional<Object> presentDefaultValue
+    ) {
         if (subcommands != null) {
             throw new CommandException("Command cannot add named args");
         }
@@ -93,29 +140,42 @@ public final class Command {
         for (var n : names) {
             checkDuplicate(n);
         }
-        named_args.add(new ArgMetadata.NamedMetadata<>(
-            argument,
-            new ArrayList<>(names),
-            Optional.of(defaultValue),
-            Optional.of(presentDefaultValue)
-        ));
+        var slot = new NamedMetadata<>(argument, defaultValue, presentDefaultValue);
+        namedSlots.add(slot);
+        for (var n : names) {
+            namedByAlias.put(n, slot);
+        }
         return this;
     }
 
     public Command subcommand(Command child) {
-        if (!positionals.isEmpty() || !named_args.isEmpty()) {
+        if (!positionals.isEmpty() || !namedSlots.isEmpty()) {
             throw new CommandException(" cannot mix subcommands ");
         }
         if (subcommands == null) {
-            subcommands = new ArgMetadata.SubcommandMetadata(new LinkedHashMap<>());
+            subcommands = new LinkedHashMap<>();
         }
-        if (subcommands.subcommands().containsKey(child.name)) {
+        if (subcommands.containsKey(child.name)) {
             throw new CommandException("Duplicate subcommand name ");
         }
-        subcommands.subcommands().put(child.name, child);
+        subcommands.put(child.name, child);
         return this;
     }
 
+    /**
+     * Tokenizes the input to a typed {@link ParsedArgs}.
+     * If the command has subcommands, the first position token is treated as the subcommand
+     * and parsing is delegated to the matching child command provided. If not, positionals
+     * are matched in order and the named arguments are resolved using an alias map,
+     * applying defaults, present defaults, or detecting unknown flags.
+     *
+     * @param input the raw command input after base command
+     * @return a {@link ParsedArgs} keyed by the original {@link Argument} references.
+     *         supports type-safe extraction without casts at the call site
+     * @throws ArgumentException if the input is missing required arguments, has
+     *         too many positionals, references an unknown subcommand, uses an
+     *         unknown named flag, or fails to parse/validate any individual value
+     */
     public ParsedArgs parse(String input) {
         var basicArgs = new Input(input).parseBasicArgs();
 
@@ -124,7 +184,7 @@ public final class Command {
                 throw new ArgumentException("Command requires a subcommand: ");
             }
             var subName = basicArgs.positional().get(0);
-            var child = subcommands.subcommands().get(subName);
+            var child = subcommands.get(subName);
             if (child == null) {
                 throw new ArgumentException("Unknown subcommand ");
             }
@@ -164,13 +224,7 @@ public final class Command {
 
         var seenNamed = new HashMap<String, String>();
         for (var entry : basicArgs.named().entrySet()) {
-            ArgMetadata.NamedMetadata<?> slot = null;
-            for (var n : named_args) {
-                if (n.names().contains(entry.getKey())) {
-                    slot = n;
-                    break;
-                }
-            }
+            var slot = namedByAlias.get(entry.getKey());
             if (slot == null) {
                 throw new ArgumentException("Unexpected named argument");
             }
@@ -180,7 +234,7 @@ public final class Command {
             seenNamed.put(slot.argument().name(), entry.getValue());
         }
 
-        for (var slot : named_args) {
+        for (var slot : namedSlots) {
             var raw = seenNamed.get(slot.argument().name());
             if (raw == null) {
                 if (slot.defaultValue().isPresent()) {
@@ -208,10 +262,8 @@ public final class Command {
                 throw new CommandException("Duplicate argument name");
             }
         }
-        for (var n : named_args) {
-            if (n.names().contains(candidate)) {
-                throw new CommandException("Duplicate argument name");
-            }
+        if (namedByAlias.containsKey(candidate)) {
+            throw new CommandException("Duplicate argument name");
         }
     }
 
