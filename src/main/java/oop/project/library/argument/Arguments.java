@@ -36,13 +36,7 @@ public final class Arguments {
     public static final ArgumentType<String> STRING = value -> value;
 
     public static <T> ArgumentType<T> custom(Function<String, T> parser) {
-        return value -> {
-            try {
-                return parser.apply(value);
-            } catch (RuntimeException e) {
-                throw new ArgumentException("Invalid custom value.", e);
-            }
-        };
+        return parser::apply;
     }
 
     public static <E extends Enum<E>> ArgumentType<E> enumeration(Class<E> enumType) {
@@ -59,15 +53,15 @@ public final class Arguments {
     }
 
     /**
-     * Creates a validation predicate that checks whether a comparable value is
-     * within the inclusive range [min, max].
+     * Creates a reusable inclusive range validation predicate for any comparable type.
+     * This is used for both integer and decimal range checks because Integer, Double,
+     * and similar numeric wrapper types implement {@link Comparable}.
      *
-     * @param min the minimum allowed value
-     * @param max the maximum allowed value
-     * @param <T> a comparable type, such as Integer or Double
-     * @return a predicate that returns true when the value is within the range
+     * @param min the minimum allowed value, inclusive
+     * @param max the maximum allowed value, inclusive
+     * @param <T> the comparable value type being checked
+     * @return a predicate that returns true when the value is within {@code [min, max]}
      */
-
     public static <T extends Comparable<T>> Predicate<T> range(T min, T max) {
         return value -> value.compareTo(min) >= 0 && value.compareTo(max) <= 0;
     }
