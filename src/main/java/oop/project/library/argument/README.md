@@ -1,36 +1,41 @@
-Development Notes
+# Argument System
 
-For the argument system, the main goal was to keep it polymorphic and not tie it to one specific type. That is why the core design is built around ArgumentType<T> instead of hardcoding logic for stuff like int, double, or LocalDate. That made it easier to support custom parsing and then later add enum support too.
+Handles parsing a single String input value into typed data.
 
-Another design choice was keeping validation attached to the argument itself. Instead of putting checks all over the scenarios, stuff like ranges, choices, and regex validation can live directly on the argument through validate(). That kept the scenarios a lot cleaner.
+## Development Notes
 
-I also added ArgumentException as a dedicated runtime exception for argument parsing and validation errors. The main point there was just to make the error handling more consistent so the rest of the library is not dealing with random generic runtime exceptions from the argument side.
+For the argument system, the main goal was keeping it polymorphic without making the API feel too heavy. That is why the main abstraction is `ArgumentType<T>`. It let us support the normal primitive cases, custom parsing, enums, and regex-related validation without hardcoding a bunch of one-off argument classes.
 
-One thing that still feels a little rough is the boundary between the argument system and the command system. The argument system handles parsing one value well, but some checks still depend on how the command side is structured, so that separation is better than before but not perfect.
+Another design choice was keeping validation attached directly to `Argument<T>` through `validate(...)`. That felt better than scattering checks around the scenarios since ranges, choices, and regex validation can stay close to the actual value being parsed.
 
-Individual Review
-Good design decisions
+We also added `ArgumentException` as the standardized error type for the argument side. The point there was mainly to stop the argument system from just throwing random generic errors and make failures easier to reason about.
 
-One good design decision in our argument system is using ArgumentType<T> as the main abstraction. That was nice because it let us support normal primitive types, custom parsing, and enums without hardcoding special cases all over the place.
+One thing that still feels a little rough is that the command system still influences how clean the argument side looks in the scenarios. The argument system itself is mostly focused on String -> parsed value, but some responsibility still ends up looking a little mixed once the scenarios get involved.
 
-Another good design decision is keeping validation attached to the argument itself with validate(). I think that made stuff like ranges, choices, and regex feel a lot cleaner since the validation stays close to the thing being parsed.
+## Individual Review
 
-Bad design decisions
+### Good design decisions
 
-One bad design decision is that our error handling is still kind of generic in some places. We do have ArgumentException, which helps, but some of the errors still feel a little too broad and could be more descriptive.
+One good design decision is using `ArgumentType<T>` as the main abstraction. That made it easy to support primitive types, custom parsing, and enum parsing without building a bunch of special-case classes.
 
-Another bad design decision is that the scenarios still do some checking that probably should be handled more by the command system. It works, but it makes the separation between the systems a little less clean than it should be.
+Another good design decision is keeping validation attached to the argument itself with `validate(...)`. I think that made ranges, choices, and regex support feel a lot cleaner and kept the scenarios from turning into a mess.
 
-One good decision in my teammate’s system
+### Bad design decisions
 
-One good design decision in the command system is separating the command structure from the parsed values. I think having Command and ParsedArgs as different things was a good idea because it makes the roles a little clearer and helps with typed extraction.
+One bad design decision is that the error handling still feels a little broader than it should in some places. We do have `ArgumentException`, which helps, but some of the failures could still be more specific and cleaner.
 
-One bad decision in my teammate’s system
+Another bad design decision is that the separation between the argument system and the rest of the library is not perfectly clean yet. The argument system itself is simple, but the scenarios still end up doing some structure-related work that ideally would live more naturally on the command side.
 
-One bad design decision in the command system is that it still feels a little underdeveloped for the MVP features. It works for the simpler cases, but things like defaults and subcommands do not feel super natural in the current design yet.
+### One good decision in my teammate’s system
 
-Team Review
+One good design decision in the command system is separating command structure from parsed values. Having `Command` and `ParsedArgs` as different things was a good call because it makes the roles clearer and helps typed extraction feel more natural.
 
-One design decision we still kind of disagree on is how much validation responsibility should live in the argument system versus the command system. There is a case for both, and I do not think we have fully settled on the cleanest split yet.
+### One bad decision in my teammate’s system
 
-One design concern we both agree on is that the current design probably needs to be cleaned up more before all the MVP features fit into it well, especially on the command side with defaults and subcommands.
+One bad design decision in the command system is that it still feels a little awkward for some of the more expanded features. It works for the current cases, but stuff like defaults and subcommands still does not feel as smooth as it probably should.
+
+## Team Review
+
+One design decision we still do not totally agree on is how much validation responsibility should live in the argument system versus the command system. There is a case for keeping more validation directly on arguments, but there is also a case for moving some of that logic outward once command structure is involved.
+
+One design concern we both agree on is that the overall design works, but some parts still feel a little forced as the feature set grows. The bigger concern is making sure new features fit into the API cleanly without making simple use cases way more annoying.

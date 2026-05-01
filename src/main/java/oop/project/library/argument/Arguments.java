@@ -58,6 +58,16 @@ public final class Arguments {
         };
     }
 
+    /**
+     * Creates a validation predicate that checks whether a comparable value is
+     * within the inclusive range [min, max].
+     *
+     * @param min the minimum allowed value
+     * @param max the maximum allowed value
+     * @param <T> a comparable type, such as Integer or Double
+     * @return a predicate that returns true when the value is within the range
+     */
+
     public static <T extends Comparable<T>> Predicate<T> range(T min, T max) {
         return value -> value.compareTo(min) >= 0 && value.compareTo(max) <= 0;
     }

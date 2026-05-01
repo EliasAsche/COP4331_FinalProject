@@ -31,6 +31,15 @@ public final class Argument<T> {
         return name;
     }
 
+    /**
+     * Parses the provided String using this argument's type and then applies any
+     * validation rules attached to the argument.
+     *
+     * @param value the raw input String
+     * @return the parsed and validated value
+     * @throws ArgumentException if parsing fails or any validation rule is not satisfied
+     */
+
     public T parse(String value) {
         final T parsed;
 
